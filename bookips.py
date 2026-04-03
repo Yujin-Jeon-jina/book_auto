@@ -15,27 +15,61 @@ async def navigate_to_pivot_tab(page, bookips_url):
     """Navigate to the Bookips spreadsheet and select the Pivot tab."""
     print("  Navigating to Bookips spreadsheet...")
     await page.goto(bookips_url, wait_until="networkidle", timeout=60000)
-    await page.wait_for_timeout(3000)
+    await page.wait_for_timeout(5000)
 
-    # Click on the Pivot tab at the bottom of the sheet
-    pivot_tab = page.locator('div.docs-sheet-tab').filter(has_text=re.compile(r'^Pivot$', re.IGNORECASE))
-    if await pivot_tab.count() > 0:
-        await pivot_tab.first.click()
-        await page.wait_for_timeout(2000)
-        print("  Pivot tab selected.")
-    else:
-        # Try alternative selector
-        tabs = page.locator('[id^="sheet-button-"]')
+    # Try multiple selectors for Google Sheets tab buttons
+    tab_selectors = [
+        'div.docs-sheet-tab',
+        '[id^="sheet-button-"]',
+        '.docs-sheet-tab-name',
+        '[role="tab"]',
+        '.goog-tab',
+    ]
+
+    # First, collect all visible tab names for debugging
+    all_tab_names = []
+    for selector in tab_selectors:
+        tabs = page.locator(selector)
         count = await tabs.count()
-        for i in range(count):
-            tab = tabs.nth(i)
-            text = await tab.inner_text()
-            if "pivot" in text.lower():
-                await tab.click()
-                await page.wait_for_timeout(2000)
-                print("  Pivot tab selected.")
-                return
-        raise Exception("Pivot tab not found. Available tabs may have different names.")
+        if count > 0:
+            for i in range(count):
+                try:
+                    text = (await tabs.nth(i).inner_text()).strip()
+                    if text:
+                        all_tab_names.append((selector, text))
+                except Exception:
+                    pass
+
+    if all_tab_names:
+        print(f"  Found tabs: {[name for _, name in all_tab_names]}")
+    else:
+        print("  Warning: No tabs detected with known selectors.")
+        # Try to find any clickable element at the bottom with "Pivot" text
+        print("  Taking screenshot for debugging...")
+        await page.screenshot(path="debug_tabs.png")
+        print("  Screenshot saved to debug_tabs.png")
+
+    # Try to click on the Pivot tab
+    for selector, name in all_tab_names:
+        if "pivot" in name.lower():
+            tab = page.locator(selector).filter(has_text=re.compile(r'Pivot', re.IGNORECASE))
+            await tab.first.click()
+            await page.wait_for_timeout(2000)
+            print("  Pivot tab selected.")
+            return
+
+    # Fallback: try clicking by visible text anywhere on the page
+    pivot_by_text = page.get_by_text("Pivot", exact=True)
+    if await pivot_by_text.count() > 0:
+        await pivot_by_text.first.click()
+        await page.wait_for_timeout(2000)
+        print("  Pivot tab selected (by text).")
+        return
+
+    raise Exception(
+        f"Pivot tab not found. Detected tabs: {[name for _, name in all_tab_names]}. "
+        "Check debug_tabs.png for the current page state."
+    )
 
 
 async def update_pivot_parameters(page, year: int, start_date: str, end_date: str):

@@ -96,6 +96,19 @@ async def run(args):
         await context.grant_permissions(["clipboard-read", "clipboard-write"])
 
         try:
+            # Check if Google login is needed
+            print("\n[1.5/6] Google 로그인 확인 중...")
+            await page.goto("https://docs.google.com/spreadsheets/", wait_until="networkidle", timeout=60000)
+            await page.wait_for_timeout(3000)
+
+            # If redirected to login page, wait for user to log in
+            if "accounts.google.com" in page.url:
+                print("  Google 로그인이 필요합니다. 브라우저에서 로그인해주세요...")
+                await page.wait_for_url("**/spreadsheets/**", timeout=300000)  # 5분 대기
+                print("  로그인 완료!")
+            else:
+                print("  이미 로그인되어 있습니다.")
+
             # Step 2: Navigate to Bookips and select Pivot tab
             print("\n[2/6] Bookips 시트 Pivot 탭 이동 중...")
             await navigate_to_pivot_tab(page, BOOKIPS_URL)
