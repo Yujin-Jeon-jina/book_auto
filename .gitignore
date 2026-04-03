@@ -1,5 +1,4 @@
-credentials.json
-token.json
+browser_data/
 __pycache__/
 *.pyc
 .env
